@@ -25,7 +25,7 @@ let code = b"\x40\x55\x48\x83\xEC*\x00\x80";
 
 use lde::{Isa, X64};
 for inst in X64::iter(code, 0x1000) {
-	println!("{:x}: {:x}", inst.va(), inst);
+    println!("{:x}: {:x}", inst.va(), inst);
 # 	assert_eq!(result_opcodes.next(), Some(inst.bytes()));
 # 	assert_eq!(result_vas.next(), Some(inst.va()));
 }
@@ -54,10 +54,10 @@ const INPUT_CODE: &[u8] = b"\x56\x33\xF6\x57\xBF\xA0\x10\x40\x00\x85\xD2\x74\x10
 use lde::{Isa, X86};
 let mut count = 0;
 for inst in X86::iter(INPUT_CODE, 0x1000) {
-	count += inst.bytes().len();
-	if count >= 5 {
-		break;
-	}
+    count += inst.bytes().len();
+    if count >= 5 {
+        break;
+    }
 }
 
 // The answer is the first 4 instructions, or 9 bytes
@@ -90,8 +90,8 @@ mod contains;
 mod iter;
 pub use self::iter::Iter;
 
-mod x86;
 mod x64;
+mod x86;
 
 mod inst;
 pub use self::inst::*;
@@ -129,8 +129,8 @@ unsafe impl Int for i64 {}
 ///
 /// Panics if `offset..offset + sizeof(T)` is out of bounds.
 pub fn read<T: Int>(bytes: &[u8], offset: usize) -> T {
-	let p = bytes[offset..offset + mem::size_of::<T>()].as_ptr() as *const T;
-	unsafe { ptr::read_unaligned(p) }
+    let p = bytes[offset..offset + mem::size_of::<T>()].as_ptr() as *const T;
+    unsafe { ptr::read_unaligned(p) }
 }
 /// Helps writing immediate and displacement values.
 ///
@@ -150,28 +150,49 @@ pub fn read<T: Int>(bytes: &[u8], offset: usize) -> T {
 ///
 /// Panics if `offset..offset + sizeof(T)` is out of bounds.
 pub fn write<T: Int>(bytes: &mut [u8], offset: usize, val: T) -> &mut [u8] {
-	let p = bytes[offset..offset + mem::size_of::<T>()].as_mut_ptr() as *mut T;
-	unsafe { ptr::write_unaligned(p, val); }
-	bytes
+    let p = bytes[offset..offset + mem::size_of::<T>()].as_mut_ptr() as *mut T;
+    unsafe {
+        ptr::write_unaligned(p, val);
+    }
+    bytes
 }
 
 #[inline]
 fn fmt_bytes(bytes: &[u8], hex_char: u8, f: &mut fmt::Formatter) -> fmt::Result {
-	let mut space = false;
-	for &byte in bytes.iter() {
-		if space && f.alternate() {
-			f.write_str(" ")?;
-		}
-		space = true;
+    fn as_hex_str<'a>(byte: u8, hex_char: u8, byte_hex: &'a mut [u8; 2]) -> &'a str {
+        let (hi, lo) = (byte >> 4, byte & 0xf);
+        byte_hex[0] = if hi < 10 {
+            b'0' + hi
+        } else {
+            hex_char + (hi - 10)
+        };
 
-		let (hi, lo) = (byte >> 4, byte & 0xf);
-		let s = [
-			if hi < 10 { b'0' + hi } else { hex_char + (hi - 10) },
-			if lo < 10 { b'0' + lo } else { hex_char + (lo - 10) },
-		];
-		f.write_str(unsafe { str::from_utf8_unchecked(&s) })?;
-	}
-	Ok(())
+        byte_hex[1] = if lo < 10 {
+            b'0' + lo
+        } else {
+            hex_char + (lo - 10)
+        };
+
+        unsafe { str::from_utf8_unchecked(byte_hex) }
+    };
+
+    let mut bytes = bytes.iter();
+    let mut byte_hex = [0u8; 2];
+    if f.alternate() {
+        if let Some(&byte) = bytes.next() {
+            f.write_str(as_hex_str(byte, hex_char, &mut byte_hex))?;
+            for &byte in bytes {
+                f.write_str(" ")?;
+                f.write_str(as_hex_str(byte, hex_char, &mut byte_hex))?;
+            }
+        }
+    } else {
+        for &byte in bytes {
+            f.write_str(as_hex_str(byte, hex_char, &mut byte_hex))?;
+        }
+    }
+
+    Ok(())
 }
 
 //----------------------------------------------------------------
@@ -185,26 +206,26 @@ impl Va for u64 {}
 ///
 /// Defines the entry points for the length disassembler.
 pub trait Isa: Sized {
-	/// Virtual address type.
-	type Va: Va;
-	/// Returns the length of the first opcode in the given byte slice.
-	///
-	/// When length disassembling fails, eg. the byte slice does not contain a complete and valid instruction, the return value is `0`.
-	fn ld(bytes: &[u8]) -> u32 {
-		Self::inst_len(bytes).total_len as u32
-	}
-	/// Returns the number of prefix, opcode, argument and total bytes in the given byte slice.
-	///
-	/// When length disassembling fails, eg. the byte slice does not contain a complete and valid instruction, the return value is `InstLen::EMPTY`.
-	fn inst_len(bytes: &[u8]) -> InstLen;
-	/// Returns an iterator over the opcodes contained in the byte slice.
-	///
-	/// Given a virtual address to keep track of the instruction pointer.
-	fn iter<'a>(bytes: &'a [u8], va: Self::Va) -> Iter<'a, Self> {
-		Iter { bytes, va }
-	}
-	#[doc(hidden)]
-	fn as_va(len: usize) -> Self::Va;
+    /// Virtual address type.
+    type Va: Va;
+    /// Returns the length of the first opcode in the given byte slice.
+    ///
+    /// When length disassembling fails, eg. the byte slice does not contain a complete and valid instruction, the return value is `0`.
+    fn ld(bytes: &[u8]) -> u32 {
+        Self::inst_len(bytes).total_len as u32
+    }
+    /// Returns the number of prefix, opcode, argument and total bytes in the given byte slice.
+    ///
+    /// When length disassembling fails, eg. the byte slice does not contain a complete and valid instruction, the return value is `InstLen::EMPTY`.
+    fn inst_len(bytes: &[u8]) -> InstLen;
+    /// Returns an iterator over the opcodes contained in the byte slice.
+    ///
+    /// Given a virtual address to keep track of the instruction pointer.
+    fn iter<'a>(bytes: &'a [u8], va: Self::Va) -> Iter<'a, Self> {
+        Iter { bytes, va }
+    }
+    #[doc(hidden)]
+    fn as_va(len: usize) -> Self::Va;
 }
 
 //----------------------------------------------------------------
@@ -212,25 +233,25 @@ pub trait Isa: Sized {
 /// Length disassembler for the `x86` instruction set architecture.
 pub struct X86;
 impl Isa for X86 {
-	type Va = u32;
-	fn inst_len(bytes: &[u8]) -> InstLen {
-		x86::inst_len(bytes)
-	}
-	#[doc(hidden)]
-	fn as_va(len: usize) -> u32 {
-		len as u32
-	}
+    type Va = u32;
+    fn inst_len(bytes: &[u8]) -> InstLen {
+        x86::inst_len(bytes)
+    }
+    #[doc(hidden)]
+    fn as_va(len: usize) -> u32 {
+        len as u32
+    }
 }
 
 /// Length disassembler for the `x86_64` instruction set architecture.
 pub struct X64;
 impl Isa for X64 {
-	type Va = u64;
-	fn inst_len(bytes: &[u8]) -> InstLen {
-		x64::inst_len(bytes)
-	}
-	#[doc(hidden)]
-	fn as_va(len: usize) -> u64 {
-		len as u64
-	}
+    type Va = u64;
+    fn inst_len(bytes: &[u8]) -> InstLen {
+        x64::inst_len(bytes)
+    }
+    #[doc(hidden)]
+    fn as_va(len: usize) -> u64 {
+        len as u64
+    }
 }
