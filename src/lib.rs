@@ -211,8 +211,8 @@ pub trait Isa: Sized {
     /// Returns the length of the first opcode in the given byte slice.
     ///
     /// When length disassembling fails, eg. the byte slice does not contain a complete and valid instruction, the return value is `0`.
-    fn ld(bytes: &[u8]) -> u32 {
-        Self::inst_len(bytes).total_len as u32
+    fn ld(bytes: &[u8]) -> u8 {
+        Self::inst_len(bytes).total_len
     }
     /// Returns the number of prefix, opcode, argument and total bytes in the given byte slice.
     ///
